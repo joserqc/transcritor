@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Transcritor Local
+Comment=GPU-first OBS video transcription to Markdown
+Exec=__INSTALL_DIR__/start.sh
+Icon=__INSTALL_DIR__/web/public/vite.svg
+Path=__INSTALL_DIR__
+Terminal=true
+Categories=Office;Audio;Video;Development;
+Keywords=transcription;whisper;gpu;obs;markdown;
+StartupNotify=true

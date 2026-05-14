@@ -1,0 +1,53 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+**/.env
+!.env.example
+
+# User data (transcriptions, uploads, generated ATAs)
+/data/
+data/
+
+# Media
+*.mp4
+*.wav
+*.mp3
+*.m4a
+*.mkv
+
+# Python
+.venv/
+.venv.backup*/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+logs/
+
+# IDE / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Tooling junk (literal ~ dirs from misconfigured tools)
+~/
+**/~/
+.deno/
+
+# Build artifacts
+build/
+*.egg-info/

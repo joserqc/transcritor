@@ -1,0 +1,66 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Space Grotesk";
+  --font-serif: "Fraunces";
+
+  --background: 40 26% 96%;
+  --foreground: 222 25% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 25% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 25% 12%;
+  --primary: 210 55% 22%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 210 30% 90%;
+  --secondary-foreground: 210 40% 18%;
+  --muted: 36 20% 92%;
+  --muted-foreground: 222 10% 40%;
+  --accent: 28 90% 56%;
+  --accent-foreground: 222 25% 12%;
+  --destructive: 0 84% 58%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 210 16% 85%;
+  --input: 210 16% 85%;
+  --ring: 210 45% 28%;
+  --chart-1: 14 82% 60%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+  --radius: 1.1rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(248, 214, 160, 0.35), transparent 40%),
+    radial-gradient(circle at 90% 0%, rgba(142, 210, 214, 0.28), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(174, 142, 255, 0.12), transparent 55%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(248, 167, 88, 0.45);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
