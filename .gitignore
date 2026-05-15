@@ -48,6 +48,9 @@ logs/
 **/~/
 .deno/
 
+# Private/local-only files (operational notes, host-specific docs)
+local/
+
 # Build artifacts
 build/
 *.egg-info/

@@ -212,6 +212,14 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 This project originally used `faster-whisper`, but its CTranslate2 backend didn't support newer GPU architectures (e.g. Blackwell `sm_120`) at the time of the rewrite. The code now uses `openai-whisper` directly. Re-introducing `faster-whisper` is welcome if it covers your target hardware — see [`AGENTS.md`](AGENTS.md) for architectural guardrails.
 
+## Documentation
+
+- [`docs/USAGE.md`](docs/USAGE.md) — full usage walkthrough (UI tour, CLI cookbook, ATA prompt patterns)
+- [`AGENTS.md`](AGENTS.md) — operational guide for contributors / coding agents
+- [`CLAUDE.md`](CLAUDE.md) — Claude AI guide / deeper code map
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting and deployment caveats
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — PR guidelines
+
 ## Contributing
 
 PRs welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. For security issues, see [`SECURITY.md`](SECURITY.md).
