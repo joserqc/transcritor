@@ -54,3 +54,6 @@ local/
 # Build artifacts
 build/
 *.egg-info/
+
+# Supabase CLI temp
+supabase/.temp/

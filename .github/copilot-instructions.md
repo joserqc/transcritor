@@ -51,8 +51,13 @@ Use `.env` as the source of truth. See `.env.example` for the full list. Require
 - `OPENAI_API_KEY` / `OPENAI_MODEL`
 - `ATA_PROVIDER`, `ATA_MAX_CHARS`
 - `TRANSCRIBE_MODEL`, `TRANSCRIBE_DEVICE`, `TRANSCRIBE_DEVICE_INDEX`
+- `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables)
 
 Never reintroduce hardcoded credentials in `database.py` or anywhere else.
+
+## CSRF header
+
+All `POST` / `PATCH` / `DELETE` routes use `dependencies=[csrf_dep]` (`require_csrf_header`) and reject requests without `X-Transcritor-Client`. The frontend defines `CSRF_HEADER` at the top of `App.tsx` and spreads it into every mutating `fetch`. New mutating endpoints and fetches must follow the same pattern.
 
 ## Important endpoints
 

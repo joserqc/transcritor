@@ -323,7 +323,8 @@ The audio files live in `data/uploads/` only while a job is running. They're del
 There's no one-click "export all" yet. Options:
 
 ```bash
-# Backend exposes raw markdown
+# Backend exposes raw markdown. Read-only GETs do not need the CSRF header,
+# but mutating routes (POST/PATCH/DELETE) do — add -H "X-Transcritor-Client: cli".
 curl http://127.0.0.1:8001/api/transcriptions/{id}/markdown > transcript.md
 curl http://127.0.0.1:8001/api/atas/{id}/markdown > ata.md
 ```
@@ -333,6 +334,8 @@ Or query Supabase directly (e.g. via Supabase's CSV export in the dashboard).
 ### Stop the server from the UI
 
 The web UI has a "Encerrar" button (top right of the header). It calls `POST /api/shutdown`, which invokes `stop.sh`. Useful if you started via the desktop launcher and don't want to open a terminal.
+
+The shutdown endpoint requires the same `X-Transcritor-Client` header as the other mutating routes — see [`../SECURITY.md`](../SECURITY.md) for why.
 
 ---
 

@@ -35,3 +35,18 @@ This project is designed for **single-user local deployment**. The Supabase sche
 2. Add authentication in front of the FastAPI app (reverse proxy with auth, or app-level middleware).
 3. Restrict CORS in `server.py` to your actual frontend origin.
 4. Consider rotating your Supabase anon key periodically.
+
+## Local CSRF caveat
+
+Even bound to `127.0.0.1`, the FastAPI server is reachable from any web page open in your browser. CORS prevents another origin from *reading* responses, but it does **not** block side-effecting "simple" requests (multipart `POST`, header-less `POST`, `GET`). While the server is running, a malicious page you visit could in principle:
+
+- call `POST /api/shutdown` and stop the server;
+- call `POST /api/transcriptions` and upload arbitrary bytes to your machine;
+- trigger other state-changing endpoints.
+
+Mitigations available today:
+
+- Stop the server with `./stop.sh` when you are not using it.
+- Run the server only inside a profile/browser session that does not browse the open web.
+
+A defense in depth (custom anti-CSRF header that forces a CORS preflight on every mutating endpoint) is on the roadmap.

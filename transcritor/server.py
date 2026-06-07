@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -81,6 +81,24 @@ OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ATA_PROVIDER_DEFAULT = os.getenv("ATA_PROVIDER", "openrouter")
 ATA_MAX_CHARS = int(os.getenv("ATA_MAX_CHARS", "20000"))
+# Default 5 GiB; override via env. Set to 0 to disable the cap.
+MAX_UPLOAD_BYTES = int(os.getenv("TRANSCRITOR_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024 * 1024)))
+
+
+def require_csrf_header(
+    x_transcritor_client: Optional[str] = Header(default=None, alias="X-Transcritor-Client"),
+) -> None:
+    """Require a custom header on every state-changing request.
+
+    Any value is accepted; the goal is to force a CORS preflight for
+    cross-origin browsers, blocking trivial CSRF from random web pages
+    while the server runs on localhost.
+    """
+    if not x_transcritor_client:
+        raise HTTPException(status_code=403, detail="Cabecalho ausente")
+
+
+csrf_dep = Depends(require_csrf_header)
 
 _model = None
 _model_lock = threading.Lock()
@@ -260,7 +278,14 @@ def build_ata_prompt(transcript_content: str, prompt: str) -> list[dict]:
 def stream_chat_completions(url: str, headers: dict, payload: dict):
     with httpx.stream("POST", url, headers=headers, json=payload, timeout=180) as response:
         if response.status_code >= 300:
-            raise HTTPException(status_code=502, detail=response.text)
+            # Log the upstream body to the backend for debugging, but do not
+            # leak it to the API client — it can contain provider-side
+            # diagnostics that the user does not need to see.
+            print(f"[LLM stream error {response.status_code}] {response.text[:500]}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Erro no provedor LLM (HTTP {response.status_code})",
+            )
         for line in response.iter_lines():
             if not line:
                 continue
@@ -339,7 +364,10 @@ def call_openrouter(messages: list[dict]) -> str:
             json=payload,
         )
     if response.status_code >= 300:
-        raise HTTPException(status_code=502, detail=response.text)
+        print(f"[OpenRouter error {response.status_code}] {response.text[:500]}")
+        raise HTTPException(
+            status_code=502, detail=f"Erro no provedor LLM (HTTP {response.status_code})"
+        )
     data = response.json()
     return data["choices"][0]["message"]["content"].strip()
 
@@ -362,7 +390,10 @@ def call_openai(messages: list[dict]) -> str:
             json=payload,
         )
     if response.status_code >= 300:
-        raise HTTPException(status_code=502, detail=response.text)
+        print(f"[OpenAI error {response.status_code}] {response.text[:500]}")
+        raise HTTPException(
+            status_code=502, detail=f"Erro no provedor LLM (HTTP {response.status_code})"
+        )
     data = response.json()
     return data["choices"][0]["message"]["content"].strip()
 
@@ -425,14 +456,15 @@ def create_transcription_job(
             )
             db_save_transcription(db_transcription)
 
-            # Also save JSON for backward compatibility
+            # Also save JSON for backward compatibility. We deliberately do
+            # not persist the absolute markdown path — it leaks $HOME and the
+            # path is fully derivable from the id.
             meta = {
                 "id": job_id,
                 "fileName": file_name,
                 "createdAt": created_at,
                 "duration": human_duration(duration),
                 "status": "Finalizado",
-                "markdownPath": str(output_path),
             }
             with meta_path.open("w", encoding="utf-8") as handle:
                 json.dump(meta, handle, ensure_ascii=False, indent=2)
@@ -464,7 +496,9 @@ app.add_middleware(
         "http://localhost:5174",
         "http://127.0.0.1:5174",
     ],
-    allow_credentials=True,
+    # The API has no cookie/credential auth; disabling this reduces surface
+    # and avoids accidentally widening trust if origins are ever loosened.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -480,7 +514,7 @@ def sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-@app.post("/api/transcriptions", response_model=JobResponse)
+@app.post("/api/transcriptions", response_model=JobResponse, dependencies=[csrf_dep])
 async def create_transcription(
     file: UploadFile = File(...),
     diarize: bool = Form(False),
@@ -488,14 +522,28 @@ async def create_transcription(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Arquivo invalido")
 
+    # Strip any path components from the client-supplied name so it cannot
+    # escape UPLOAD_DIR. We keep the original (sanitized) name for display.
+    safe_name = Path(file.filename).name
+    if not safe_name or safe_name in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Nome de arquivo invalido")
+
     job_id = uuid.uuid4().hex
+    target_path = UPLOAD_DIR / f"{job_id}-{safe_name}"
+
+    # Defense in depth: ensure the resolved write target is still inside UPLOAD_DIR.
+    upload_root = UPLOAD_DIR.resolve()
+    resolved_target = target_path.resolve()
+    if upload_root != resolved_target.parent:
+        raise HTTPException(status_code=400, detail="Nome de arquivo invalido")
+
     created_at = datetime.now().isoformat()
     job_state = JobState(
         id=job_id,
         status="queued",
         progress=0.0,
         error=None,
-        file_name=file.filename,
+        file_name=safe_name,
         created_at=created_at,
     )
     with job_lock:
@@ -507,21 +555,38 @@ async def create_transcription(
         status="queued",
         progress=0.0,
         created_at=created_at,
-        file_name=file.filename,
+        file_name=safe_name,
     )
     db_save_job(db_job)
 
-    target_path = UPLOAD_DIR / f"{job_id}-{file.filename}"
-    with target_path.open("wb") as handle:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            handle.write(chunk)
+    total_written = 0
+    try:
+        with target_path.open("wb") as handle:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if MAX_UPLOAD_BYTES and total_written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Arquivo excede limite de {MAX_UPLOAD_BYTES} bytes",
+                    )
+                handle.write(chunk)
+    except HTTPException:
+        # Cleanup partial upload before propagating.
+        target_path.unlink(missing_ok=True)
+        with job_lock:
+            jobs.pop(job_id, None)
+        try:
+            db_update_job(job_id, status="failed", error="upload rejeitado")
+        except Exception:
+            pass
+        raise
 
     thread = threading.Thread(
         target=create_transcription_job,
-        args=(job_id, target_path, file.filename, diarize),
+        args=(job_id, target_path, safe_name, diarize),
         daemon=True,
     )
     job_update(job_id, status="running", progress=1)
@@ -574,12 +639,10 @@ async def get_transcription(job_id: str) -> JobStatusResponse:
 
 @app.get("/api/transcriptions/{job_id}/markdown")
 async def get_transcription_markdown(job_id: str) -> dict:
-    meta_path = TRANSCRIPT_DIR / f"{job_id}.json"
+    # Reconstruct the path from the id instead of trusting any value stored
+    # in the JSON metadata — defends against arbitrary file read if metadata
+    # is tampered with.
     markdown_path = TRANSCRIPT_DIR / f"{job_id}.md"
-    if meta_path.exists():
-        with meta_path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        markdown_path = Path(data.get("markdownPath", markdown_path))
 
     if not markdown_path.exists():
         raise HTTPException(status_code=404, detail="Markdown nao encontrado")
@@ -587,22 +650,15 @@ async def get_transcription_markdown(job_id: str) -> dict:
     return {"content": markdown_path.read_text(encoding="utf-8")}
 
 
-@app.delete("/api/transcriptions/{transcription_id}")
+@app.delete("/api/transcriptions/{transcription_id}", dependencies=[csrf_dep])
 async def delete_transcription(transcription_id: str) -> dict:
     meta_path = TRANSCRIPT_DIR / f"{transcription_id}.json"
+    # Reconstruct the markdown path from the id; never trust metadata input.
     markdown_path = TRANSCRIPT_DIR / f"{transcription_id}.md"
     print(f"[DELETE transcricao] meta_path={meta_path} exists={meta_path.exists()}")
 
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail="Transcricao nao encontrada")
-
-    try:
-        with meta_path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        markdown_path = Path(data.get("markdownPath", markdown_path))
-    except Exception:
-        # Proceed with default markdown path if metadata read fails
-        pass
 
     if markdown_path.exists():
         try:
@@ -619,12 +675,12 @@ async def delete_transcription(transcription_id: str) -> dict:
 
 
 # Avoid path collision with job status endpoint by exposing an alternate route
-@app.delete("/api/transcriptions/{transcription_id}/delete")
+@app.delete("/api/transcriptions/{transcription_id}/delete", dependencies=[csrf_dep])
 async def delete_transcription_alt(transcription_id: str) -> dict:
     return await delete_transcription(transcription_id)
 
 
-@app.patch("/api/transcriptions/{transcription_id}/rename")
+@app.patch("/api/transcriptions/{transcription_id}/rename", dependencies=[csrf_dep])
 async def rename_transcription(transcription_id: str, payload: RenameRequest) -> dict:
     """Rename a transcription for display purposes.
 
@@ -669,7 +725,7 @@ async def rename_transcription(transcription_id: str, payload: RenameRequest) ->
     }
 
 
-@app.post("/api/atas", response_model=AtaSummary)
+@app.post("/api/atas", response_model=AtaSummary, dependencies=[csrf_dep])
 async def create_ata(payload: AtaRequest) -> AtaSummary:
     meta_path = TRANSCRIPT_DIR / f"{payload.transcriptionId}.json"
     markdown_path = TRANSCRIPT_DIR / f"{payload.transcriptionId}.md"
@@ -716,7 +772,6 @@ async def create_ata(payload: AtaRequest) -> AtaSummary:
         "title": title,
         "createdAt": now,
         "sourceId": payload.transcriptionId,
-        "markdownPath": str(ATA_DIR / f"{ata_id}.md"),
         "provider": provider,
         "model": model_name,
         "prompt": payload.prompt,
@@ -736,7 +791,7 @@ async def create_ata(payload: AtaRequest) -> AtaSummary:
     )
 
 
-@app.post("/api/atas/stream")
+@app.post("/api/atas/stream", dependencies=[csrf_dep])
 async def create_ata_stream(payload: AtaRequest):
     meta_path = TRANSCRIPT_DIR / f"{payload.transcriptionId}.json"
     markdown_path = TRANSCRIPT_DIR / f"{payload.transcriptionId}.md"
@@ -795,7 +850,6 @@ async def create_ata_stream(payload: AtaRequest):
                 "title": title,
                 "createdAt": now,
                 "sourceId": payload.transcriptionId,
-                "markdownPath": str(ATA_DIR / f"{ata_id}.md"),
                 "provider": provider,
                 "model": model_name,
                 "prompt": payload.prompt,
@@ -831,12 +885,8 @@ async def list_atas() -> list[AtaSummary]:
 
 @app.get("/api/atas/{ata_id}/markdown")
 async def get_ata_markdown(ata_id: str) -> dict:
-    meta_path = ATA_DIR / f"{ata_id}.json"
+    # Reconstruct the path from the id; do not trust any metadata value.
     markdown_path = ATA_DIR / f"{ata_id}.md"
-    if meta_path.exists():
-        with meta_path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        markdown_path = Path(data.get("markdownPath", markdown_path))
 
     if not markdown_path.exists():
         raise HTTPException(status_code=404, detail="Markdown nao encontrado")
@@ -844,21 +894,14 @@ async def get_ata_markdown(ata_id: str) -> dict:
     return {"content": markdown_path.read_text(encoding="utf-8")}
 
 
-@app.delete("/api/atas/{ata_id}")
+@app.delete("/api/atas/{ata_id}", dependencies=[csrf_dep])
 async def delete_ata(ata_id: str) -> dict:
     meta_path = ATA_DIR / f"{ata_id}.json"
+    # Reconstruct from id; never trust metadata.
     markdown_path = ATA_DIR / f"{ata_id}.md"
 
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail="ATA nao encontrada")
-
-    try:
-        with meta_path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        markdown_path = Path(data.get("markdownPath", markdown_path))
-    except Exception:
-        # Proceed with default markdown path if metadata read fails
-        pass
 
     if markdown_path.exists():
         try:
@@ -880,7 +923,7 @@ async def list_clients() -> list[str]:
     return db_list_unique_clients()
 
 
-@app.patch("/api/transcriptions/{transcription_id}/client")
+@app.patch("/api/transcriptions/{transcription_id}/client", dependencies=[csrf_dep])
 async def update_transcription_client(transcription_id: str, payload: ClientRequest) -> dict:
     """Update the client field of a transcription."""
     meta_path = TRANSCRIPT_DIR / f"{transcription_id}.json"
@@ -916,7 +959,7 @@ async def update_transcription_client(transcription_id: str, payload: ClientRequ
     }
 
 
-@app.patch("/api/atas/{ata_id}/client")
+@app.patch("/api/atas/{ata_id}/client", dependencies=[csrf_dep])
 async def update_ata_client(ata_id: str, payload: ClientRequest) -> dict:
     """Update the client field of an ATA."""
     meta_path = ATA_DIR / f"{ata_id}.json"
@@ -1017,7 +1060,7 @@ async def list_atas_by_client(client: Optional[str] = None) -> list[AtaSummary]:
     return items
 
 
-@app.post("/api/shutdown")
+@app.post("/api/shutdown", dependencies=[csrf_dep])
 async def shutdown_server() -> dict:
     """Executa o script stop.sh para encerrar o servidor."""
     stop_script = BASE_DIR / "stop.sh"

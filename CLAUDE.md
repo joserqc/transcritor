@@ -81,6 +81,7 @@ Notable patterns:
 - Inline rename via pencil icon → `PATCH` API
 - ATA streaming via `EventSource` (SSE) → progressive `ReactMarkdown`
 - API base derives from `window.location.hostname:8001`
+- Every mutating `fetch` sends the `X-Transcritor-Client: web` header (see `CSRF_HEADER` near the top of `App.tsx`). The backend rejects mutating requests without it.
 
 ## Data flows
 
@@ -125,6 +126,7 @@ See `.env.example`. Essentials:
 - `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (for ATA generation)
 - `HF_TOKEN` (only if using diarization)
 - `TRANSCRIBE_MODEL` (default: `medium`)
+- `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables the cap)
 
 ## How to run
 
@@ -256,3 +258,5 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 3. **Database:** metadata updates auto-merge; anon role has `GRANT ALL` (RLS disabled).
 4. **Frontend:** `App.tsx` is single-file by design. Don't split unless asked.
 5. **GPU:** prefer `openai-whisper` for newer NVIDIA arches; don't suggest `faster-whisper` as default without checking CUDA arch support.
+6. **CSRF header:** every new state-changing endpoint must use `dependencies=[csrf_dep]`; every new mutating fetch in `App.tsx` must spread `CSRF_HEADER`.
+7. **No absolute paths in metadata:** read paths are reconstructed from the id (`TRANSCRIPT_DIR / f"{id}.md"`, `ATA_DIR / f"{id}.md"`). Don't reintroduce `markdownPath` in the JSON or DB.

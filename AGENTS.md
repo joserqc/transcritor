@@ -63,7 +63,7 @@ python -m transcritor.cli video.mp4 --model large-v3 --out-dir data/transcriptio
 
 ## Environment variables
 
-See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. Required for ATA generation: at least one of `OPENROUTER_API_KEY` / `OPENAI_API_KEY`. Required for diarization: `HF_TOKEN`.
+See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. Required for ATA generation: at least one of `OPENROUTER_API_KEY` / `OPENAI_API_KEY`. Required for diarization: `HF_TOKEN`. Upload cap: `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables).
 
 ## Sources of truth
 
@@ -83,6 +83,8 @@ See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. 
 6. Frontend polls job state and renders transcript / ATA on demand
 
 ## Active endpoints
+
+All mutating routes (`POST` / `PATCH` / `DELETE`) require the `X-Transcritor-Client` request header. The backend rejects them with `403` otherwise. The frontend injects this header automatically in `web/src/App.tsx`.
 
 ### Transcriptions
 - `POST /api/transcriptions`
@@ -125,3 +127,5 @@ The API base URL is `window.location.hostname:8001` — meaning if you access th
 - Preserve CORS entries for `5173` and `5174` when editing the backend.
 - When touching transcription, verify the change works in **both** the CLI and the web API.
 - Never commit `.env` or anything in `data/`. The `.gitignore` covers both.
+- Any new mutating endpoint must add `dependencies=[csrf_dep]` and any client call must send `X-Transcritor-Client`.
+- Do not persist absolute filesystem paths (e.g. `markdownPath`) in JSON metadata or in Supabase — derive them from the id at read time.

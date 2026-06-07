@@ -150,6 +150,8 @@ Diarization is opt-in. To enable it:
 
 ## API
 
+All state-changing endpoints (`POST`, `PATCH`, `DELETE`) require the header `X-Transcritor-Client: web` (any non-empty value works). This forces a CORS preflight from other origins and blocks trivial local CSRF. Read-only `GET`s do not.
+
 | Method | Path | Purpose |
 |--------|------|---------|
 | `POST` | `/api/transcriptions` | Upload MP4, returns `job_id` |

@@ -48,6 +48,37 @@ def init_db():
     print(f"✅ Connected to Supabase: {SUPABASE_URL}")
 
 
+def _normalize_iso_datetime(value: Any) -> str:
+    """Normalize a date value to ISO-8601 before it reaches a timestamptz column.
+
+    Postgres parses ambiguous ``DD/MM/YYYY`` strings using its MDY datestyle,
+    which silently transposes month and day for any day <= 12 (e.g.
+    ``07/01/2026`` becomes July 1st). A localized display string must therefore
+    never be handed to the database. This converts known display formats to ISO,
+    passes through values that are already ISO, and falls back to ``now()`` for
+    anything unrecognized rather than letting Postgres guess.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if not isinstance(value, str) or not value.strip():
+        return datetime.now().isoformat()
+    text = value.strip()
+    # Already ISO-8601 — the only format we want stored.
+    if "T" in text:
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat()
+        except ValueError:
+            pass
+    # Brazilian display format produced by the API/UI (_format_date_for_display).
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text, fmt).isoformat()
+        except ValueError:
+            continue
+    # Unknown/ambiguous: refuse to feed it to Postgres' MDY parser.
+    return datetime.now().isoformat()
+
+
 # ==================== Transcription CRUD ====================
 
 
@@ -70,7 +101,7 @@ def save_transcription(transcription: Transcription) -> None:
     data = {
         "id": transcription.id,
         "file_name": transcription.file_name,
-        "created_at": transcription.created_at,
+        "created_at": _normalize_iso_datetime(transcription.created_at),
         "duration": transcription.duration,
         "status": transcription.status,
         "markdown_content": transcription.markdown_content,
@@ -187,7 +218,7 @@ def save_job(job: Job) -> None:
         "progress": job.progress,
         "error": job.error,
         "file_name": job.file_name,
-        "created_at": job.created_at,
+        "created_at": _normalize_iso_datetime(job.created_at),
         "transcription_id": job.transcription_id,
         "metadata": job.metadata,
     }
@@ -277,7 +308,7 @@ def save_ata(ata: Ata) -> None:
     data = {
         "id": ata.id,
         "title": ata.title,
-        "created_at": ata.created_at,
+        "created_at": _normalize_iso_datetime(ata.created_at),
         "source_id": ata.source_id,
         "content": ata.content,
         "prompt": ata.prompt,

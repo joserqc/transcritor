@@ -292,7 +292,9 @@ def write_markdown(
     with output_path.open("w", encoding="utf-8") as handle:
         handle.write(f"# Transcricao: {source_path.name}\n\n")
         handle.write("## Metadados\n\n")
-        handle.write(f"- Arquivo: {source_path}\n")
+        # Only the filename — absolute paths would leak $HOME / user info
+        # when the Markdown is shared or stored in the cloud database.
+        handle.write(f"- Arquivo: {source_path.name}\n")
         handle.write(f"- Data: {metadata.get('processed_at')}\n")
         duration = metadata.get("duration")
         if duration is not None:
