@@ -17,8 +17,9 @@ data/
 *.mkv
 
 # Python
-.venv/
-.venv.backup*/
+# Sem barra final: .venv pode ser symlink, e "dir/" nao casa com symlinks
+.venv
+.venv.backup*
 __pycache__/
 *.pyc
 *.pyo
