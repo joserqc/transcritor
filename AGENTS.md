@@ -54,6 +54,13 @@ python -m transcritor.cli video.mp4 --diarize
 python -m transcritor.cli video.mp4 --model large-v3 --out-dir data/transcriptions
 ```
 
+### Maintenance
+
+```bash
+python scripts/repair_metadata.py --dry-run   # preview date/name repairs (local JSON + Supabase)
+python scripts/repair_metadata.py             # apply
+```
+
 ## CLI behavior
 
 - CLI default: `--model large-v3`
@@ -63,12 +70,13 @@ python -m transcritor.cli video.mp4 --model large-v3 --out-dir data/transcriptio
 
 ## Environment variables
 
-See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. Required for ATA generation: at least one of `OPENROUTER_API_KEY` / `OPENAI_API_KEY`. Required for diarization: `HF_TOKEN`. Upload cap: `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables).
+See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. Required for ATA generation and automatic meeting titles: at least one of `OPENROUTER_API_KEY` / `OPENAI_API_KEY`. Required for diarization: `HF_TOKEN`. Upload cap: `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables).
 
 ## Sources of truth
 
 - `transcritor/engine.py` — audio extraction, Whisper, diarization, speaker merge, Markdown output
 - `transcritor/server.py` — REST/SSE contracts and job lifecycle
+- `transcritor/titling.py` — LLM auto-titles and recording-date parsing from file names (no heavy imports)
 - `transcritor/database.py` — CRUD for `transcriptions`, `jobs`, `atas`
 - `transcritor/cli.py` — batch / terminal interface
 - `web/src/App.tsx` — entire SPA (no router)
@@ -79,8 +87,9 @@ See `.env.example` for the full list. Required: `SUPABASE_URL`, `SUPABASE_KEY`. 
 2. Backend creates job, dispatches daemon thread
 3. `engine.py` extracts WAV via ffmpeg, transcribes, optionally diarizes, merges segments by speaker/gap
 4. Final Markdown: `[HH:MM:SS] Participante N: text`
-5. Original upload is deleted on completion (success or failure)
-6. Frontend polls job state and renders transcript / ATA on demand
+5. `created_at` uses the recording timestamp embedded in the file name (OBS pattern) when present; a display name is auto-generated via LLM (best-effort — skipped without an API key)
+6. Original upload is deleted on completion (success or failure)
+7. Frontend polls job state and renders transcript / ATA on demand
 
 ## Active endpoints
 

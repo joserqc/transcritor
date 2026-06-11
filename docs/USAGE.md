@@ -63,12 +63,15 @@ The list of everything you've transcribed.
 | Action | How |
 |--------|-----|
 | View Markdown | Click the row — opens a dialog with the full transcript |
+| Copy as Markdown | "Copiar Markdown" button inside the dialog — copies the raw Markdown to the clipboard (e.g. to paste into Obsidian) |
 | Rename | Click the pencil icon next to the name, type new name, press Enter |
 | Tag with a client | Click the tag icon, type a client name |
 | Download | "Baixar" button on each row |
 | Delete | Trash icon (with confirmation) |
 
 Renaming only changes the display name (the original filename is preserved in metadata).
+
+**Auto-naming:** when an LLM API key is configured (`OPENROUTER_API_KEY` or `OPENAI_API_KEY`), each new transcription gets a short title generated from its content. The "Data" column shows the recording timestamp parsed from OBS-style file names (`YYYY-MM-DD HH-MM-SS.mp4`), not the time of transcription.
 
 ### 3. Criar ATA
 
@@ -87,7 +90,7 @@ The system prompt enforces sections: Objetivo, Participantes, Principais pontos,
 
 ### 4. Visualizar ATAS
 
-Same shape as Transcrições. List, view, tag with client, delete.
+Same shape as Transcrições. List, view, copy as Markdown, tag with client, delete.
 
 Each ATA stores its source transcription ID, the prompt used, the provider, and the model — so you can audit later.
 
@@ -237,9 +240,9 @@ Tom respeitoso, sem julgamentos.
 
 | Provider | Model | When to use |
 |----------|-------|-------------|
-| OpenRouter | `anthropic/claude-3.5-sonnet` | Best default for nuanced Portuguese summaries |
-| OpenRouter | `anthropic/claude-3-opus` | Higher quality, slower, more expensive |
-| OpenRouter | `openai/gpt-4o` | Comparable to Claude 3.5, faster |
+| OpenRouter | `deepseek/deepseek-v4-flash` | Very cheap with strong Portuguese summaries — great default for high volume |
+| OpenRouter | `anthropic/claude-3.5-sonnet` | Nuanced Portuguese summaries, higher cost |
+| OpenRouter | `openai/gpt-4o` | Comparable quality, faster |
 | OpenRouter | `openai/gpt-4o-mini` | Cheap and fast for low-stakes recaps |
 | OpenAI | `gpt-4o-mini` | Direct from OpenAI, no router fee |
 

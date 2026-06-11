@@ -4,7 +4,7 @@
 
 If you find a security issue — credential exposure, RCE, SSRF, an injection in the SSE/streaming path, anything that could harm users — **do not open a public GitHub issue.**
 
-Instead, open a [private security advisory](https://github.com/joserqc/transcritor-cuda/security/advisories/new) on this repository, or contact the maintainer directly via GitHub.
+Instead, open a [private security advisory](https://github.com/joserqc/transcritor/security/advisories/new) on this repository, or contact the maintainer directly via GitHub.
 
 Please include:
 - A description of the issue and its impact
@@ -38,15 +38,14 @@ This project is designed for **single-user local deployment**. The Supabase sche
 
 ## Local CSRF caveat
 
-Even bound to `127.0.0.1`, the FastAPI server is reachable from any web page open in your browser. CORS prevents another origin from *reading* responses, but it does **not** block side-effecting "simple" requests (multipart `POST`, header-less `POST`, `GET`). While the server is running, a malicious page you visit could in principle:
+Even bound to `127.0.0.1`, the FastAPI server is reachable from any web page open in your browser. CORS prevents another origin from *reading* responses, but it does **not** block side-effecting "simple" requests (multipart `POST`, header-less `POST`, `GET`). Without mitigation, a malicious page you visit could in principle:
 
 - call `POST /api/shutdown` and stop the server;
 - call `POST /api/transcriptions` and upload arbitrary bytes to your machine;
 - trigger other state-changing endpoints.
 
-Mitigations available today:
+Mitigations in place:
 
+- Every mutating endpoint (`POST` / `PATCH` / `DELETE`) requires the custom `X-Transcritor-Client` header. Cross-origin, that header forces a CORS preflight, so the "simple request" attacks above are rejected with `403`.
 - Stop the server with `./stop.sh` when you are not using it.
 - Run the server only inside a profile/browser session that does not browse the open web.
-
-A defense in depth (custom anti-CSRF header that forces a CORS preflight on every mutating endpoint) is on the roadmap.

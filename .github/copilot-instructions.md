@@ -4,6 +4,7 @@
 
 - Backend: FastAPI + threads in `transcritor/server.py`
 - Transcription: `openai-whisper` in `transcritor/engine.py`
+- Auto-titles + recording-date parsing: `transcritor/titling.py` (LLM via OpenRouter/OpenAI, best-effort)
 - Diarization: `pyannote.audio` (opt-in via `HF_TOKEN`)
 - Frontend: Vite + React 19 SPA in `web/src/App.tsx`
 - Persistence: Supabase (`transcriptions`, `jobs`, `atas`)

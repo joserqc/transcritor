@@ -12,6 +12,8 @@ Built for people who record on OBS and want their transcripts to stay on their o
 - **Speaker diarization** via pyannote.audio (optional)
 - **Web UI** for upload, progress, transcript browsing, ATA generation
 - **ATA generation** with streaming via OpenRouter or OpenAI
+- **Auto-naming** — meetings get an LLM-generated title after transcription, and the date comes from the recording timestamp in OBS-style file names
+- **Copy as Markdown** button on transcripts and ATAs (paste straight into Obsidian)
 - **Cloud persistence** via Supabase (free tier is enough)
 - **CLI** for batch processing without the UI
 - **Desktop launcher** template for Linux (GNOME `.desktop` entry)
@@ -40,7 +42,7 @@ Three tables in Supabase: `transcriptions`, `atas`, `jobs`. Audio files are proc
 - `ffmpeg` and `ffprobe` in `PATH`
 - NVIDIA GPU with CUDA (optional; falls back to CPU)
 - A free Supabase project
-- An OpenRouter or OpenAI key (for ATA generation only — transcription works offline)
+- An OpenRouter or OpenAI key (for ATA generation and auto-naming only — transcription works offline)
 
 ## Quick start
 
@@ -179,11 +181,14 @@ transcritor/
 │   ├── cli.py            # CLI entry point
 │   ├── engine.py         # Whisper + pyannote pipeline
 │   ├── server.py         # FastAPI app
+│   ├── titling.py        # LLM auto-titles + recording date parsing
 │   └── database.py       # Supabase CRUD
 ├── web/                  # React/Vite SPA
 │   └── src/App.tsx       # Single-file UI
 ├── supabase/
 │   └── schema.sql        # Database schema
+├── scripts/
+│   └── repair_metadata.py  # Repair dates/names in stored metadata
 ├── start.sh / stop.sh    # Local launcher
 ├── transcritor.desktop.template
 ├── .env.example

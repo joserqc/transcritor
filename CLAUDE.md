@@ -23,6 +23,7 @@ transcritor/
 │   ├── cli.py               # CLI entry point
 │   ├── engine.py            # Whisper + pyannote (transcription core)
 │   ├── server.py            # FastAPI REST + SSE
+│   ├── titling.py           # LLM auto-titles + recording date from filename
 │   └── database.py          # Supabase CRUD
 ├── web/src/
 │   ├── App.tsx              # SPA — all views in one file by design
@@ -30,6 +31,8 @@ transcritor/
 │   └── lib/utils.ts
 ├── supabase/
 │   └── schema.sql           # Database schema
+├── scripts/
+│   └── repair_metadata.py   # Idempotent repair of dates/names (JSON + Supabase)
 ├── data/                    # Runtime data (gitignored)
 │   ├── uploads/             # MP4s in flight; deleted after transcription
 │   ├── transcriptions/      # legacy
@@ -64,6 +67,11 @@ Endpoints summary in `AGENTS.md`. Concurrency:
 - Daemon threads per job
 - **Auto-cleanup:** uploaded MP4 is deleted after each job in the `finally` block
 
+### `transcritor/titling.py`
+LLM helpers kept free of heavy imports (no torch/whisper), so scripts can use them:
+- `extract_recorded_at(file_name)` — parses the OBS-style recording timestamp embedded in file names (`YYYY-MM-DD HH-MM-SS`); used as `created_at` so the "Data" column reflects when the meeting happened
+- `generate_meeting_title(transcript, file_name)` — short pt-BR title via OpenRouter/OpenAI, saved as `displayName`; best-effort (returns `None` without an API key or on provider failure)
+
 ### `transcritor/database.py`
 Supabase client + CRUD.
 
@@ -94,6 +102,8 @@ User uploads MP4
   → Daemon thread runs transcribe_file()
   → Frontend polls GET /api/transcriptions/{job_id} every 2s
   → Progress: 3% → 5-90% → 95% → 100%
+  → createdAt = recording timestamp parsed from file name (OBS pattern), else now()
+  → displayName auto-generated via LLM (titling.py; skipped without API key)
   → Result saved to Supabase transcriptions
   → Job updated (status: completed, transcription_id)
   → finally: data/uploads/{uuid}.mp4 deleted
@@ -123,7 +133,7 @@ POST /api/atas/stream (SSE)
 
 See `.env.example`. Essentials:
 - `SUPABASE_URL` + `SUPABASE_KEY` (anon JWT, not personal token)
-- `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (for ATA generation)
+- `OPENROUTER_API_KEY` or `OPENAI_API_KEY` (for ATA generation and auto-titles)
 - `HF_TOKEN` (only if using diarization)
 - `TRANSCRIBE_MODEL` (default: `medium`)
 - `TRANSCRITOR_MAX_UPLOAD_BYTES` (default 5 GiB; `0` disables the cap)
@@ -248,6 +258,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 - Transcription dispatch: `transcritor/server.py` (search for the upload route)
 - Progress updates: `progress_updater` thread in `transcritor/engine.py`
 - Rename handler: `PATCH /api/transcriptions/{id}/rename` in `server.py`
+- Auto-title + recording date: `transcritor/titling.py` (called from `create_transcription_job`)
 - ATA streaming: `POST /api/atas/stream` in `server.py`
 - Table component: `<Table>` references in `web/src/App.tsx`
 
