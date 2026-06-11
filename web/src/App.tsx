@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   CheckCircle2,
   ClipboardCheck,
+  Copy,
   Eye,
   FileAudio,
   FileText,
@@ -178,6 +179,17 @@ type Ata = {
   createdAt: string
   sourceId: string
   client?: string | null
+}
+
+// Copia o Markdown bruto para a área de transferência (ex.: colar no Obsidian).
+async function copyMarkdown(content: string | null) {
+  if (!content) return
+  try {
+    await navigator.clipboard.writeText(content)
+    toast.success("Markdown copiado para a área de transferência")
+  } catch {
+    toast.error("Não foi possível copiar o Markdown")
+  }
 }
 
 function MarkdownViewer({ content }: { content: string }) {
@@ -1864,6 +1876,17 @@ function App() {
               Visualizacao do conteudo da transcricao em markdown
             </DialogDescription>
           </DialogHeader>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!openTranscriptContent}
+              onClick={() => copyMarkdown(openTranscriptContent)}
+            >
+              <Copy />
+              Copiar Markdown
+            </Button>
+          </div>
           {openTranscriptContent ? (
             <ScrollArea className="max-h-[70vh] rounded-xl border border-border bg-card p-6">
               <MarkdownViewer content={openTranscriptContent} />
@@ -1886,6 +1909,17 @@ function App() {
               Visualizacao do conteudo da ATA em markdown
             </DialogDescription>
           </DialogHeader>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!openAtaContent}
+              onClick={() => copyMarkdown(openAtaContent)}
+            >
+              <Copy />
+              Copiar Markdown
+            </Button>
+          </div>
           {openAtaContent ? (
             <ScrollArea className="max-h-[70vh] rounded-xl border border-border bg-card p-6">
               <MarkdownViewer content={openAtaContent} />
