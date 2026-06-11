@@ -35,6 +35,7 @@ from transcritor.database import (
     update_ata as db_update_ata,
     list_unique_clients as db_list_unique_clients,
 )
+from transcritor.titling import extract_recorded_at, generate_meeting_title
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(BASE_DIR / ".env")
@@ -193,6 +194,18 @@ def _format_date_for_display(date_str: str) -> str:
     return date_str
 
 
+def _created_at_sort_key(value: str) -> datetime:
+    """Chronological sort key for display dates ("DD/MM/YYYY HH:MM").
+
+    Sorting the display string directly is lexicographic on the day, which
+    scrambles the order across months.
+    """
+    try:
+        return datetime.strptime(value, "%d/%m/%Y %H:%M")
+    except (TypeError, ValueError):
+        return datetime.min
+
+
 def load_transcriptions() -> list[TranscriptionSummary]:
     items: list[TranscriptionSummary] = []
     for meta_path in TRANSCRIPT_DIR.glob("*.json"):
@@ -211,7 +224,7 @@ def load_transcriptions() -> list[TranscriptionSummary]:
                 client=data.get("client"),
             )
         )
-    items.sort(key=lambda item: item.createdAt, reverse=True)
+    items.sort(key=lambda item: _created_at_sort_key(item.createdAt), reverse=True)
     return items
 
 
@@ -230,7 +243,7 @@ def load_atas() -> list[AtaSummary]:
                 client=data.get("client"),
             )
         )
-    items.sort(key=lambda item: item.createdAt, reverse=True)
+    items.sort(key=lambda item: _created_at_sort_key(item.createdAt), reverse=True)
     return items
 
 
@@ -437,13 +450,20 @@ def create_transcription_job(
             )
 
             duration = get_duration_seconds(input_path)
-            created_at = datetime.now().isoformat()
+            # A coluna "Data" deve refletir quando a reuniao aconteceu; nomes
+            # de arquivo no padrao OBS embutem o timestamp da gravacao.
+            recorded_at = extract_recorded_at(file_name)
+            created_at = (recorded_at or datetime.now()).isoformat()
 
             # Read markdown content
             markdown_content = None
             if output_path.exists():
                 with output_path.open("r", encoding="utf-8") as f:
                     markdown_content = f.read()
+
+            # Titulo automatico via LLM; sem chave de API configurada o nome
+            # de exibicao simplesmente nao e definido.
+            display_name = generate_meeting_title(markdown_content or "", file_name)
 
             # Save to database
             db_transcription = DbTranscription(
@@ -453,6 +473,7 @@ def create_transcription_job(
                 duration=human_duration(duration),
                 status="Finalizado",
                 markdown_content=markdown_content,
+                metadata={"displayName": display_name} if display_name else None,
             )
             db_save_transcription(db_transcription)
 
@@ -466,6 +487,8 @@ def create_transcription_job(
                 "duration": human_duration(duration),
                 "status": "Finalizado",
             }
+            if display_name:
+                meta["displayName"] = display_name
             with meta_path.open("w", encoding="utf-8") as handle:
                 json.dump(meta, handle, ensure_ascii=False, indent=2)
 
@@ -1024,7 +1047,7 @@ async def list_transcriptions_by_client(client: Optional[str] = None) -> list[Tr
                 client=item_client,
             )
         )
-    items.sort(key=lambda item: item.createdAt, reverse=True)
+    items.sort(key=lambda item: _created_at_sort_key(item.createdAt), reverse=True)
     return items
 
 
@@ -1056,7 +1079,7 @@ async def list_atas_by_client(client: Optional[str] = None) -> list[AtaSummary]:
                 client=item_client,
             )
         )
-    items.sort(key=lambda item: item.createdAt, reverse=True)
+    items.sort(key=lambda item: _created_at_sort_key(item.createdAt), reverse=True)
     return items
 
 
