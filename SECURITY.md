@@ -29,12 +29,18 @@ Out of scope:
 
 ## Notes on deployment
 
-This project is designed for **single-user local deployment**. The Supabase schema runs with RLS disabled and the anon role granted full table access. If you intend to expose the API to multiple users or to the public internet:
+O projeto foi desenvolvido para **uso local por uma pessoa**. O instalador
+Supabase habilita RLS e concede somente leitura e escrita de registros a
+`service_role`. `anon` e `authenticated` não recebem acesso às tabelas. A chave
+secreta ou a chave legada `service_role` fica exclusivamente no backend.
 
-1. Enable RLS and write proper policies.
-2. Add authentication in front of the FastAPI app (reverse proxy with auth, or app-level middleware).
-3. Restrict CORS in `server.py` to your actual frontend origin.
-4. Consider rotating your Supabase anon key periodically.
+`service_role` ignora RLS. Por isso, habilitar RLS não torna a API local adequada
+automaticamente para múltiplos usuários ou para exposição à internet. Para esse uso:
+
+1. Adicione autenticação e autorização por usuário ao FastAPI ou ao proxy.
+2. Defina isolamento dos dados e políticas coerentes com o papel usado em cada requisição.
+3. Restrinja CORS em `server.py` à origem real do frontend.
+4. Proteja a credencial do backend e faça sua rotação em caso de exposição.
 
 ## Local CSRF caveat
 

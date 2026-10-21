@@ -74,11 +74,22 @@ $EDITOR .env
 
 Required keys: `SUPABASE_URL`, `SUPABASE_KEY`. Everything else is optional or has a default.
 
-### Set up Supabase
+### Configurar Supabase
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Open the SQL Editor and paste the contents of [`supabase/schema.sql`](supabase/schema.sql).
-3. Copy your project URL and **anon** key into `.env`.
+1. Crie um projeto em [supabase.com](https://supabase.com).
+2. No SQL Editor do projeto correto, execute [`supabase/schema.sql`](supabase/schema.sql).
+3. Preencha `SUPABASE_URL` e `SUPABASE_KEY` no `.env` do backend. Use uma **chave secreta** (`sb_secret_...`) ou a chave legada **service_role**.
+
+O navegador fala com a API local; a chave do banco permanece exclusivamente no
+backend. O instalador habilita RLS e concede apenas `SELECT`, `INSERT`, `UPDATE`
+e `DELETE` a `service_role`, sem acesso de `anon` ou `authenticated`. Os grants
+são explícitos e funcionam também em projetos sem permissões automáticas para
+tabelas novas. `service_role` ignora RLS, mas continua precisando desses grants.
+
+O script pode ser reaplicado: preserva os registros, fecha o acesso de instalações
+antigas e altera apenas as três tabelas do Transcritor e o acesso de `service_role`
+ao schema `public`. Em banco compartilhado, confirme o projeto e a propriedade
+dessas tabelas antes da execução.
 
 ### Run
 
@@ -203,7 +214,21 @@ pip uninstall -y torch torchvision torchaudio
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 ```
 
-**Supabase permission denied** — confirm you ran `supabase/schema.sql` and the `GRANT` statements at the bottom executed without error. Also confirm you're using the **anon** key, not a personal access token.
+**Supabase: permissão negada** — confira se `SUPABASE_KEY` no backend é uma chave
+secreta (`sb_secret_...`) ou a chave legada `service_role`, do mesmo projeto de
+`SUPABASE_URL`. Uma chave `anon`/publishable ou um token pessoal de gerenciamento
+não atende a esse contrato. Confira também se `supabase/schema.sql` foi aplicado
+por completo: RLS habilitada não substitui os grants explícitos de tabela.
+
+Para validar o instalador em PostgreSQL descartável, com Docker e a imagem
+`pgvector/pgvector:pg17` já disponível localmente:
+
+```bash
+TRANSCRITOR_TEST_POSTGRES=1 .venv/bin/python -m pytest tests/test_supabase_schema.py -q
+```
+
+O teste usa contêiner sem rede e sem portas publicadas, com dados fictícios,
+e o remove ao terminar. Não usa credenciais ou bancos Supabase reais.
 
 **Browser doesn't open after `start.sh`** — make sure `xdg-open` is installed (`sudo apt install xdg-utils`) and you're in a desktop session.
 

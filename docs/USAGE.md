@@ -354,7 +354,10 @@ Not currently. The persistence layer assumes Supabase. A SQLite/Postgres-local b
 Whisper supports ~100 languages. Set `TRANSCRIBE_LANGUAGE` to the ISO 639-1 code (e.g. `en`, `es`, `pt`) or leave it blank for auto-detect. The ATA generation prompts default to Portuguese — for other languages, write your prompts in the target language.
 
 **Q: Can I expose this on the internet?**
-Technically yes (change the CORS list in `server.py` and front it with a reverse proxy with auth), but **read `SECURITY.md` first**. RLS is disabled on the Supabase tables by default — that's fine for single-user local but unsafe for multi-tenant.
+É possível adaptar a implantação, mas **leia `SECURITY.md` primeiro**. O instalador
+mantém RLS habilitada e acesso exclusivo do backend por `service_role`. Esse papel
+ignora RLS: uso por várias pessoas exige autenticação, autorização e isolamento
+dos dados na API, além de configurar o proxy e CORS em `server.py`.
 
 **Q: Does it handle long meetings (3+ hours)?**
 Yes, but:

@@ -18,6 +18,7 @@ Short operational guide for coding agents working in this repo.
 - `TRANSCRIBE_COMPUTE_TYPE` and `--compute-type` exist for compat; the current `openai-whisper` path doesn't really use them.
 - `database.py` requires `SUPABASE_URL` / `SUPABASE_KEY` from `.env` — no hardcoded fallbacks. Treat `.env` as the only source.
 - Startup runs `init_db()` only. There is no automatic file → DB migration.
+- `supabase/schema.sql` deve manter RLS habilitada e grants explícitos de CRUD somente para `service_role`, restritos às três tabelas do app. `SUPABASE_KEY` é uma credencial exclusiva do backend (chave secreta ou legada `service_role`); nunca orientar o uso de `anon` nem expor a chave ao frontend.
 
 ## Common commands
 
